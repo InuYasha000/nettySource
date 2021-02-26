@@ -56,6 +56,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      */
     static final int DEFAULT_MAX_PENDING_EXECUTOR_TASKS = Math.max(16, SystemPropertyUtil.getInt("io.netty.eventexecutor.maxPendingTasks", Integer.MAX_VALUE));
 
+    //线程状态，因为 thread 的初始化采用延迟启动的方式，只有在第一个任务时，executor 才会执行并创建该线程，从而节省资源。
     private static final int ST_NOT_STARTED = 1; // 未开始
     private static final int ST_STARTED = 2; // 已开始
     private static final int ST_SHUTTING_DOWN = 3; // 正在关闭中
@@ -86,12 +87,16 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     /**
      * 任务队列
+     * addTaskWakesUp 属性，添加任务到 taskQueue 队列时，是否唤醒 thread 线程。
+     * maxPendingTasks 属性，最大等待执行任务数量，即 taskQueue 队列大小。
+     * rejectedExecutionHandler 属性，拒绝执行处理器。在 taskQueue 队列超过最大任务数量时，怎么拒绝处理新提交的任务。
      *
      * @see #newTaskQueue(int)
      */
     private final Queue<Runnable> taskQueue;
     /**
      * 线程
+     * 在 SingleThreadEventExecutor 中，任务是提交到 taskQueue 队列中，而执行在 thread 线程中。
      */
     private volatile Thread thread;
     /**
@@ -120,6 +125,9 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     private final Set<Runnable> shutdownHooks = new LinkedHashSet<Runnable>();
     /**
      * 添加任务时，是否唤醒线程{@link #thread}
+     * 添加任务后，任务是否会自动导致线程唤醒”，但它为false时需要去唤醒
+     * 对于 Nio 使用的 NioEventLoop ，它的线程执行任务是基于 Selector 监听感兴趣的事件，
+     * 所以当任务添加到 taskQueue 队列中时，线程是无感知的，所以需要调用 #wakeup(boolean inEventLoop) 方法，进行主动的唤醒。
      */
     private final boolean addTaskWakesUp;
     /**
@@ -141,6 +149,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     /**
      * 状态
+     * 线程状态。SingleThreadEventExecutor 在实现上，thread 的初始化采用延迟启动的方式，
+     * 只有在第一个任务时，executor 才会执行并创建该线程，从而节省资源
      */
     @SuppressWarnings({ "FieldMayBeFinal", "unused" })
     private volatile int state = ST_NOT_STARTED;
@@ -545,6 +555,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     /**
      * Returns the amount of time left until the scheduled task with the closest dead line is executed.
+     * 返回的为下一个定时任务距离现在的时间，如果不存在定时任务，则默认返回 1000 ms
      */
     protected long delayNanos(long currentTimeNanos) {
         ScheduledFutureTask<?> scheduledTask = peekScheduledTask();

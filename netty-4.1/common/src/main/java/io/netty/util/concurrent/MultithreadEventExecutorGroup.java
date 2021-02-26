@@ -137,6 +137,8 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         chooser = chooserFactory.newChooser(children);
 
         // 创建监听器，用于 EventExecutor 终止时的监听
+        // 回调的具体逻辑是，当所有 EventExecutor 都终止完成时，通过调用 Future#setSuccess(V result) 方法，
+        // 通知监听器们。至于为什么设置的值是 null ，因为监听器们不关注具体的结果。
         final FutureListener<Object> terminationListener = new FutureListener<Object>() {
 
             @Override
@@ -167,6 +169,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         return chooser.next();
     }
 
+    //这里用的是只读readonly，防止遍历修改
     @Override
     public Iterator<EventExecutor> iterator() {
         return readonlyChildren.iterator();

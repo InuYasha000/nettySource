@@ -20,6 +20,7 @@ import java.util.AbstractSet;
 import java.util.Arrays;
 import java.util.Iterator;
 
+//优化点：相比 SelectorImpl 中使用的 selectedKeys 所使用的 HashSet 的 #add(E e) 方法，事件复杂度从 O(lgn) 降低到 O(1) 。
 final class SelectedSelectionKeySet extends AbstractSet<SelectionKey> {
 
     /**

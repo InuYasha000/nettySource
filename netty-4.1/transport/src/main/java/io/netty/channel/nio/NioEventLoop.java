@@ -70,6 +70,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     /**
      * 少于该 N 值，不开启空轮询重建新的 Selector 对象的功能
+     * 这两个值是用来判断是否出现JDK 空轮训的bug的
      */
     private static final int MIN_PREMATURE_SELECTOR_RETURNS = 3;
     /**
@@ -154,7 +155,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
      * the select method and the select method will block for that time unless
      * waken up.
      *
-     * 唤醒标记。因为唤醒方法 {@link Selector#wakeup()} 开销比较大，通过该标识，减少调用。
+     * 因为 Selector#wakeup() 方法的唤醒操作是开销比较大的操作，并且每次重复调用相当于重复唤醒。
+     * 所以，通过 wakenUp 属性，通过 CAS 修改 false => true ，保证有且仅有进行一次唤醒。
      *
      * @see #wakeup(boolean)
      * @see #run()
@@ -168,6 +170,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     private final SelectStrategy selectStrategy;
     /**
      * 处理 Channel 的就绪的 IO 事件，占处理任务的总时间的比例
+     * 会三种类型的任务：
+     * 1) Channel 的就绪的 IO 事件；
+     * 2) 普通任务；
+     * 3) 定时任务。
+     * 而 ioRatio 属性，处理 Channel 的就绪的 IO 事件，占处理任务的总时间的比例
      */
     private volatile int ioRatio = 50;
     /**
@@ -412,6 +419,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         rebuildSelector0();
     }
 
+    // 这个函数时解决JDK空轮训的关键
+    // 重建 Selector 对象，以修复该问题
+    // 主要是需要将老的 Selector 对象的“数据”复制到新的 Selector 对象上，并关闭老的 Selector 对象。
     private void rebuildSelector0() {
         final Selector oldSelector = selector;
         if (oldSelector == null) {
@@ -428,11 +438,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         // Register all channels to the new Selector.
-        // 将注册在 NioEventLoop 上的所有 Channel ，注册到新创建 Selector 对象上
+        // 遍历老的 Selector 对象的 selectionKeys,将注册在 NioEventLoop 上的所有 Channel ，注册到新创建 Selector 对象上
         int nChannels = 0; // 计算重新注册成功的 Channel 数量
         for (SelectionKey key: oldSelector.keys()) {
             Object a = key.attachment();
             try {
+                //校验 SelectionKey 有效，并且 Java NIO Channel 并未注册在新的 Selector 对象上。
                 if (!key.isValid() || key.channel().keyFor(newSelectorTuple.unwrappedSelector) != null) {
                     continue;
                 }
@@ -488,6 +499,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     protected void run() {
         for (;;) {
             try {
+                //SELECT，-1 ，表示使用阻塞 select 的策略。
+                //CONTINUE，-2，表示需要进行重试的策略。实际上，默认情况下，不会返回 CONTINUE 的策略。
+                //>= 0 ，表示不需要 select ，目前已经有可以执行的任务了。
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
                     case SelectStrategy.CONTINUE: // 默认实现下，不存在这个情况。
                         continue;
@@ -537,6 +551,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 needsToSelectAgain = false;
 
                 final int ioRatio = this.ioRatio;
+                //这里是去做限制时间的操作，注意这里是根据处理IO操作时间的标准来限制的
                 if (ioRatio == 100) {
                     try {
                         // 处理 Channel 感兴趣的就绪 IO 事件
@@ -850,21 +865,31 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     private void select(boolean oldWakenUp) throws IOException {
         // 记录下 Selector 对象
+        // 谜题揭晓：这样的写法在于没必要每次都访问volatile修饰的 this.selector
         Selector selector = this.selector;
         try {
             // select 计数器
+            // 所以每次在正在轮询完成( 例如：轮询超时 )，则重置 selectCnt 为 1 。
             int selectCnt = 0; // cnt 为 count 的缩写
             // 记录当前时间，单位：纳秒
             long currentTimeNanos = System.nanoTime();
             // 计算 select 截止时间，单位：纳秒。
+            // delayNanos()方法返回的为下一个定时任务距离现在的时间，如果不存在定时任务，则默认返回 1000 ms
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
 
+            //“死”循环，直到符合如下任一一种情况后结束：
+            //1:select 操作超时，
+            //2:若有新的任务加入，
+            //3:查询到任务或者唤醒，
+            //4:线程被异常打断，
+            //5:发生 NIO 空轮询的 Bug 后重建 Selector 对象后
             for (;;) {
                 // 计算本次 select 的超时时长，单位：毫秒。
                 // + 500000L 是为了四舍五入
                 // / 1000000L 是为了纳秒转为毫秒
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
                 // 如果超时时长，则结束 select
+                // 1：第一种结束方式
                 if (timeoutMillis <= 0) {
                     if (selectCnt == 0) { // 如果是首次 select ，selectNow 一次，非阻塞
                         selector.selectNow();

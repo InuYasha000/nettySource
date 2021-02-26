@@ -23,6 +23,7 @@ import java.util.Set;
 
 /**
  * 基于 Netty SelectedSelectionKeySet 作为 `selectionKeys` 的 Selector 实现类
+ * 优化
  */
 final class SelectedSelectionKeySetSelector extends Selector {
 

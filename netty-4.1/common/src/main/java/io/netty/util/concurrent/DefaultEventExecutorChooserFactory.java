@@ -36,7 +36,12 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
     @SuppressWarnings("unchecked")
     @Override
-    public EventExecutorChooser newChooser(EventExecutor[] executors) {
+    public EventExecutorChooser newChooser(EventExecutor[] executors) {\
+        // 我们以 8 来举个例子。
+        // 8 的二进制为 1000 。
+        // -8 的二进制使用补码表示。所以，先求反生成反码为 0111 ，然后加一生成补码为 1000 。
+        // 8 和 -8 并操作后，还是 8 。
+        // 实际上，以 2 为幂次方的数字，都是最高位为 1 ，剩余位为 0 ，所以对应的负数，求完补码还是自己。
         if (isPowerOfTwo(executors.length)) { // 是否为 2 的幂次方
             return new PowerOfTwoEventExecutorChooser(executors);
         } else {
@@ -48,6 +53,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         return (val & -val) == val;
     }
 
+    //这个可以看成优化，但我觉得唯一可以说成优化点在于位运算快一点，两者都是单调递增
     private static final class PowerOfTwoEventExecutorChooser implements EventExecutorChooser {
 
         /**
@@ -70,6 +76,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
     }
 
+    //利用idx自增，简单求余
     private static final class GenericEventExecutorChooser implements EventExecutorChooser {
 
         /**

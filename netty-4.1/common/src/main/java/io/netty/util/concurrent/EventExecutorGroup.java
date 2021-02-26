@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
  * life-cycle and allows shutting them down in a global fashion.
  *
  */
+//EventExecutorGroup 自身不执行任务，而是将任务 #submit(...) 或 #schedule(...) 给自己管理的 EventExecutor 的分组。
+//至于提交给哪一个 EventExecutor ，一般是通过 #next() 方法，选择一个 EventExecutor 。
 public interface EventExecutorGroup extends ScheduledExecutorService, Iterable<EventExecutor> {
 
     /**

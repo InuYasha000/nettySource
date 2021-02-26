@@ -35,6 +35,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
 
     /**
      * 默认任务队列最大数量
+     * 2倍CPU倍数，但是最大值是16
      */
     protected static final int DEFAULT_MAX_PENDING_TASKS = Math.max(16, SystemPropertyUtil.getInt("io.netty.eventLoop.maxPendingTasks", Integer.MAX_VALUE));
 
@@ -84,6 +85,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
         return (EventLoop) super.next();
     }
 
+    //将 Channel 和 EventLoop 创建一个 DefaultChannelPromise 对象。通过这个 DefaultChannelPromise 对象，我们就能实现对异步注册过程的监听。
     @Override
     public ChannelFuture register(Channel channel) {
         return register(new DefaultChannelPromise(channel, this));
@@ -93,6 +95,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
     public ChannelFuture register(final ChannelPromise promise) {
         ObjectUtil.checkNotNull(promise, "promise");
         // 注册 Channel 到 EventLoop 上
+        // 最后调用到AbstractUnsafe#register(EventLoop eventLoop, final ChannelPromise promise) 方法，注册 Channel 到 EventLoop 上。
         promise.channel().unsafe().register(this, promise);
         // 返回 ChannelPromise 对象
         return promise;

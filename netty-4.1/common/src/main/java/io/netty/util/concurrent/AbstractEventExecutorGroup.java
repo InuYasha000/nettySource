@@ -33,6 +33,7 @@ import static io.netty.util.concurrent.AbstractEventExecutor.*;
  */
 public abstract class AbstractEventExecutorGroup implements EventExecutorGroup {
 
+    //提交一个普通任务到 EventExecutor 中
     @Override
     public Future<?> submit(Runnable task) {
         return next().submit(task);
@@ -48,6 +49,7 @@ public abstract class AbstractEventExecutorGroup implements EventExecutorGroup {
         return next().submit(task);
     }
 
+    //提交一个定时任务到 EventExecutor 中
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
         return next().schedule(command, delay, unit);
@@ -73,6 +75,7 @@ public abstract class AbstractEventExecutorGroup implements EventExecutorGroup {
         return shutdownGracefully(DEFAULT_SHUTDOWN_QUIET_PERIOD /* 2 */, DEFAULT_SHUTDOWN_TIMEOUT /* 15 */, TimeUnit.SECONDS);
     }
 
+    //关闭 EventExecutorGroup
     /**
      * @deprecated {@link #shutdownGracefully(long, long, TimeUnit)} or {@link #shutdownGracefully()} instead.
      */
@@ -90,6 +93,7 @@ public abstract class AbstractEventExecutorGroup implements EventExecutorGroup {
         return Collections.emptyList();
     }
 
+    //在 EventExecutor 中执行多个普通任务
     @Override
     public <T> List<java.util.concurrent.Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
         return next().invokeAll(tasks);
@@ -110,6 +114,7 @@ public abstract class AbstractEventExecutorGroup implements EventExecutorGroup {
         return next().invokeAny(tasks, timeout, unit);
     }
 
+    //在 EventExecutor 中执行一个普通任务
     @Override
     public void execute(Runnable command) {
         next().execute(command);
