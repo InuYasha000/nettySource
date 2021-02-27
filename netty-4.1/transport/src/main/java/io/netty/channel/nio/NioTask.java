@@ -24,6 +24,7 @@ import java.nio.channels.Selector;
  *
  * @see NioEventLoop#register(SelectableChannel, int, NioTask)
  */
+//用于自定义 Nio 事件处理接口。对于每个 Nio 事件，可以认为是一个任务( Task )
 public interface NioTask<C extends SelectableChannel> {
 
     /**

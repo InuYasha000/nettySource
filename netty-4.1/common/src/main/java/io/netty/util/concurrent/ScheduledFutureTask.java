@@ -44,6 +44,10 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
 
     /**
      * @return 获得当前时间，这个是相对 {@link #START_TIME} 来算的。TODO 芋艿，为啥使用相对时间
+     * 因为是定时调度，我改了系统时间也没关系
+     * 存的是距离下次调度还要多长时间
+     * 不受系统时间影响
+     * 最大的好处
      */
     static long nanoTime() {
         return System.nanoTime() - START_TIME;
@@ -162,6 +166,7 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
 
     @Override
     public void run() {
+        //校验，必须在 EventLoop 的线程中。
         assert executor().inEventLoop();
         try {
             if (periodNanos == 0) {
